@@ -16,7 +16,7 @@
             background-color: #F9FAFB;
             color: #111827;
             overflow-y: auto;
-            -webkit-text-size-adjust: 100%; /* Prevent font scaling issues on iOS */
+            -webkit-text-size-adjust: 100%;
         }
         header {
             background-color: #1E3A8A;
@@ -29,20 +29,20 @@
             justify-content: center;
         }
         header img {
-            max-height: 40px; /* Reduced for mobile */
+            max-height: 40px;
             margin-right: 0.5rem;
         }
         header h1 {
             margin: 0;
-            font-size: 1.5rem; /* Reduced for mobile */
+            font-size: 1.5rem;
             font-weight: 600;
             text-align: center;
             flex-grow: 1;
         }
         .container {
-            max-width: 100%; /* Full width on mobile */
+            max-width: 100%;
             width: 100%;
-            padding: 1rem; /* Reduced padding */
+            padding: 1rem;
             text-align: center;
             flex: 1;
             display: flex;
@@ -50,11 +50,13 @@
             align-items: center;
         }
         .button-container {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.5rem; /* Tighter gap on mobile */
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            grid-template-rows: auto auto;
+            gap: 0.5rem;
             justify-content: center;
             margin: 1rem 0;
+            max-width: 100%;
         }
         button {
             padding: 0.75rem 1.5rem;
@@ -65,8 +67,8 @@
             border: none;
             border-radius: 0.375rem;
             transition: background-color 0.2s;
-            min-width: 80px; /* Ensure minimum touch area */
-            margin: 0.25rem; /* Add margin for touch spacing */
+            min-width: 80px;
+            margin: 0.25rem;
         }
         button:hover:not(:disabled) {
             background-color: #7E22CE;
@@ -86,27 +88,29 @@
             border-radius: 0.375rem;
             border: 1px solid #D1D5DB;
             width: 100%;
-            max-width: 100%; /* Full width on mobile */
+            max-width: 100%;
             background-color: #FFFFFF;
             color: #111827;
             text-align: center;
         }
-        #status, #receivedValue {
+        #countdown, #countdownStatus, #receivedValue, #status {
             margin: 0.75rem 0;
-            font-size: 1rem; /* Reduced for mobile */
+            font-size: 1rem;
             color: #111827;
         }
+        #countdown {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #9333EA;
+            display: none;
+        }
         canvas {
-            max-width: 100%; /* Full width on mobile */
+            max-width: 100%;
             width: 100%;
             margin: 1rem 0;
             background-color: #FFFFFF;
             border-radius: 0.375rem;
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        }
-        p {
-            margin: 0.5rem 0;
-            font-size: 0.9rem; /* Reduced for mobile */
         }
         footer {
             background-color: #1E3A8A;
@@ -115,36 +119,35 @@
             padding: 0.75rem;
             width: 100%;
             margin-top: auto;
-            font-size: 0.9rem; /* Reduced for mobile */
+            font-size: 0.9rem;
         }
 
-        /* Media Query for Mobile (e.g., max-width: 768px) */
         @media (max-width: 768px) {
             header h1 {
                 font-size: 1.25rem;
             }
             .button-container {
-                flex-direction: column;
-                align-items: center;
+                grid-template-columns: repeat(2, 1fr);
+                grid-template-rows: auto auto auto;
                 gap: 0.75rem;
             }
             button {
                 padding: 0.75rem 1.25rem;
                 font-size: 0.9rem;
-                min-width: 120px; /* Larger touch area */
+                min-width: 120px;
             }
             select {
                 font-size: 0.9rem;
                 padding: 0.5rem;
             }
             canvas {
-                height: 200px !important; /* Fixed height for mobile */
+                height: 200px !important;
             }
-            p {
-                font-size: 0.8rem;
-            }
-            #status, #receivedValue {
+            #countdown, #countdownStatus, #receivedValue, #status {
                 font-size: 0.9rem;
+            }
+            #countdown {
+                font-size: 1.25rem;
             }
         }
     </style>
@@ -163,338 +166,392 @@
             <button id="twentySevenNine" disabled>27/9</button>
             <button id="thirtyTen" disabled>30/10</button>
             <button id="togglePercentage">Percentage: Off</button>
+            <button id="fullscreenBtn">Full Screen</button>
         </div>
         <p>Step on sensors for 5 seconds to record swing</p>
         <select id="swingSelect">
             <option value="">Select a swing to plot</option>
         </select>
-        <canvas id="swingChart"></canvas>
-        <p id="status">Disconnected</p>
+        <p id="countdown">5</p>
+        <p id="countdownStatus"></p>
         <p id="receivedValue">Received Value: None</p>
+        <p id="status">Disconnected</p>
+        <canvas id="swingChart"></canvas>
     </div>
     <footer>
         <p>Designed By Roman Engineering</p>
     </footer>
 
     <script>
-        let device, characteristic;
-        let selectedButton = null;
-        let chartInstance = null;
-        const swings = {};
-        let swingCount = 0;
-        let pendingSwing = { x1: null, y1: null, x2: null, y2: null };
-        let currentTempo = { backFrames: 0, downFrames: 0 };
-        let isPercentage = false;
+        document.addEventListener('DOMContentLoaded', () => {
+            let device, characteristic;
+            let selectedButton = null;
+            let chartInstance = null;
+            const swings = {};
+            let swingCount = 0;
+            let pendingSwing = { x1: null, y1: null, x2: null, y2: null };
+            let currentTempo = { backFrames: 0, downFrames: 0 };
+            let isPercentage = false;
+            let countdownInterval = null;
+            let countdownTime = 5;
 
-        const serviceUUID = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
-        const charUUID = 'beb5483e-36e1-4688-b7f5-ea07361b26a8';
-        const frameTime = 0.033;
+            const serviceUUID = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
+            const charUUID = 'beb5483e-36e1-4688-b7f5-ea07361b26a8';
+            const frameTime = 0.033;
 
-        const connectBtn = document.getElementById('connectBtn');
-        const eighteenSix = document.getElementById('eighteenSix');
-        const twentyOneSeven = document.getElementById('twentyOneSeven');
-        const twentyFourEight = document.getElementById('twentyFourEight');
-        const twentySevenNine = document.getElementById('twentySevenNine');
-        const thirtyTen = document.getElementById('thirtyTen');
-        const togglePercentage = document.getElementById('togglePercentage');
-        const swingSelect = document.getElementById('swingSelect');
-        const status = document.getElementById('status');
-        const receivedValue = document.getElementById('receivedValue');
+            const connectBtn = document.getElementById('connectBtn');
+            const eighteenSix = document.getElementById('eighteenSix');
+            const twentyOneSeven = document.getElementById('twentyOneSeven');
+            const twentyFourEight = document.getElementById('twentyFourEight');
+            const twentySevenNine = document.getElementById('twentySevenNine');
+            const thirtyTen = document.getElementById('thirtyTen');
+            const togglePercentage = document.getElementById('togglePercentage');
+            const swingSelect = document.getElementById('swingSelect');
+            const status = document.getElementById('status');
+            const countdown = document.getElementById('countdown');
+            const countdownStatus = document.getElementById('countdownStatus');
+            const receivedValue = document.getElementById('receivedValue');
+            const fullscreenBtn = document.getElementById('fullscreenBtn');
+            const swingChart = document.getElementById('swingChart');
 
-        const buttons = [eighteenSix, twentyOneSeven, twentyFourEight, twentySevenNine, thirtyTen];
+            const buttons = [eighteenSix, twentyOneSeven, twentyFourEight, twentySevenNine, thirtyTen];
 
-        function setSelectedButton(button) {
-            buttons.forEach(btn => {
-                btn.classList.remove('selected');
-                btn.disabled = false;
-            });
-            button.classList.add('selected');
-            selectedButton = button;
-            currentTempo = parseTempo(button.textContent);
-        }
+            function setSelectedButton(button) {
+                buttons.forEach(btn => {
+                    btn.classList.remove('selected');
+                    btn.disabled = false;
+                });
+                button.classList.add('selected');
+                selectedButton = button;
+                currentTempo = parseTempo(button.textContent);
+            }
 
-        function parseTempo(tempoStr) {
-            const [back, down] = tempoStr.split('/').map(Number);
-            return { backFrames: back, downFrames: down };
-        }
+            function parseTempo(tempoStr) {
+                const [back, down] = tempoStr.split('/').map(Number);
+                return { backFrames: back, downFrames: down };
+            }
 
-        function parseInput(inputStr) {
-            inputStr = inputStr.trim();
-            if (inputStr.includes(';')) {
-                const lists = inputStr.split(';').map(s => s.trim());
-                if (lists.length === 4) {
-                    return lists.map(list => {
-                        if (list.startsWith('(') && list.endsWith(')')) {
-                            list = '[' + list.slice(1, -1) + ']';
-                        } else if (list.startsWith('{') && list.endsWith('}')) {
-                            list = '[' + list.slice(1, -1) + ']';
-                        } else if (list.includes(',')) {
-                            list = '[' + list + ']';
-                        }
-                        try {
-                            return JSON.parse(list);
-                        } catch {
-                            return [];
-                        }
-                    });
+            function parseInput(inputStr) {
+                inputStr = inputStr.trim();
+                if (inputStr.includes(';')) {
+                    const lists = inputStr.split(';').map(s => s.trim());
+                    if (lists.length === 4) {
+                        return lists.map(list => {
+                            if (list.startsWith('(') && list.endsWith(')')) {
+                                list = '[' + list.slice(1, -1) + ']';
+                            } else if (list.startsWith('{') && list.endsWith('}')) {
+                                list = '[' + list.slice(1, -1) + ']';
+                            } else if (list.includes(',')) {
+                                list = '[' + list + ']';
+                            }
+                            try {
+                                return JSON.parse(list);
+                            } catch {
+                                return [];
+                            }
+                        });
+                    }
+                    return [];
                 }
                 return [];
             }
-            return [];
-        }
 
-        function calculatePercentage(weights1, weights2) {
-            const totalWeights = weights1.reduce((a, b) => a + b, 0) + weights2.reduce((a, b) => a + b, 0);
-            return totalWeights > 0 ? weights1.map(w => (w / totalWeights * 100).toFixed(2)) : weights1.map(() => 0);
-        }
-
-        function addSwing(x1, y1, x2, y2) {
-            if (x1.length === y1.length && x2.length === y2.length && x1.length > 0 && x2.length > 0) {
-                swingCount++;
-                const swingKey = `swing ${swingCount}`;
-                swings[swingKey] = { x1, y1, x2, y2 };
-                const option = document.createElement('option');
-                option.value = swingKey;
-                option.textContent = swingKey;
-                swingSelect.appendChild(option);
-                swingSelect.value = swingKey;
-                plotSwing(swingKey);
-                status.textContent = `Added and plotted ${swingKey}`;
-                return true;
+            function calculatePercentage(weights1, weights2) {
+                const totalWeights = weights1.reduce((a, b) => a + b, 0) + weights2.reduce((a, b) => a + b, 0);
+                return totalWeights > 0 ? weights1.map(w => (w / totalWeights * 100).toFixed(2)) : weights1.map(() => 0);
             }
-            status.textContent = 'Invalid swing data';
-            return false;
-        }
 
-        function plotSwing(swingKey) {
-            if (chartInstance) chartInstance.destroy();
-            const data = swings[swingKey];
-            if (!data) return;
-
-            const ctx = document.getElementById('swingChart').getContext('2d');
-            chartInstance = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    datasets: [
-                        {
-                            label: isPercentage ? 'Lead %' : 'Lead Weight',
-                            data: data.x1.map((x, i) => ({ x: x * 1000, y: isPercentage ? parseFloat(calculatePercentage([data.y1[i]], [data.y2[i]])[0]) : data.y1[i] })),
-                            borderColor: '#9333EA',
-                            backgroundColor: 'rgba(147, 51, 234, 0.2)',
-                            fill: false,
-                            tension: 0.1,
-                            pointRadius: 2
-                        },
-                        {
-                            label: isPercentage ? 'Trail %' : 'Trail Weight',
-                            data: data.x2.map((x, i) => ({ x: x * 1000, y: isPercentage ? parseFloat(calculatePercentage([data.y2[i]], [data.y1[i]])[0]) : data.y2[i] })),
-                            borderColor: '#F59E0B',
-                            backgroundColor: 'rgba(245, 158, 11, 0.2)',
-                            fill: false,
-                            tension: 0.1,
-                            pointRadius: 2
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        title: { display: true, text: swingKey, color: '#111827', font: { size: 16 } },
-                        legend: { labels: { color: '#111827' } },
-                        annotation: {
-                            annotations: {
-                                startLine: {
-                                    type: 'line',
-                                    xMin: 1000,
-                                    xMax: 1000,
-                                    borderColor: '#1E3A8A',
-                                    borderWidth: 2,
-                                    label: { content: 'Start', enabled: true, position: 'top', color: '#1E3A8A' }
-                                },
-                                topLine: {
-                                    type: 'line',
-                                    xMin: 1000 + (currentTempo.backFrames * frameTime * 1000),
-                                    xMax: 1000 + (currentTempo.backFrames * frameTime * 1000),
-                                    borderColor: '#9333EA',
-                                    borderWidth: 2,
-                                    label: { content: 'Top', enabled: true, position: 'top', color: '#9333EA' }
-                                },
-                                impactLine: {
-                                    type: 'line',
-                                    xMin: 1000 + (currentTempo.backFrames * frameTime * 1000) + (currentTempo.downFrames * frameTime * 1000),
-                                    xMax: 1000 + (currentTempo.backFrames * frameTime * 1000) + (currentTempo.downFrames * frameTime * 1000),
-                                    borderColor: '#F59E0B',
-                                    borderWidth: 2,
-                                    label: { content: 'Impact', enabled: true, position: 'top', color: '#F59E0B' }
-                                }
-                            }
-                        },
-                        tooltip: {
-                            enabled: true,
-                            mode: 'nearest',
-                            callbacks: {
-                                label: function(context) {
-                                    let label = context.dataset.label || '';
-                                    if (label) label += ': ';
-                                    if (context.parsed.y !== null) {
-                                        label += `x: ${context.parsed.x} ms, y: ${context.parsed.y} ${isPercentage ? '%' : 'g'}`;
-                                    }
-                                    return label;
-                                }
-                            }
-                        }
-                    },
-                    scales: {
-                        x: {
-                            title: { display: true, text: 'Time (ms)', color: '#111827' },
-                            type: 'linear',
-                            position: 'bottom',
-                            ticks: { stepSize: 250, color: '#111827' }
-                        },
-                        y: {
-                            title: { display: true, text: isPercentage ? 'Weight (%)' : 'Weight (g)', color: '#111827' },
-                            type: 'linear',
-                            position: 'left',
-                            ticks: { stepSize: isPercentage ? 10 : 100, color: '#111827' }
-                        }
-                    }
+            function addSwing(x1, y1, x2, y2) {
+                if (x1.length === y1.length && x2.length === y2.length && x1.length > 0 && x2.length > 0) {
+                    swingCount++;
+                    const swingKey = `swing ${swingCount}`;
+                    swings[swingKey] = { x1, y1, x2, y2 };
+                    const option = document.createElement('option');
+                    option.value = swingKey;
+                    option.textContent = swingKey;
+                    swingSelect.appendChild(option);
+                    swingSelect.value = swingKey;
+                    plotSwing(swingKey);
+                    status.textContent = `Added and plotted ${swingKey}`;
+                    return true;
                 }
-            });
-        }
-
-        connectBtn.addEventListener('click', async () => {
-            try {
-                if (!navigator.bluetooth) {
-                    throw new Error('Web Bluetooth API not available. Try Chrome or Safari.');
-                }
-                status.textContent = 'Requesting Bluetooth device...';
-                device = await navigator.bluetooth.requestDevice({
-                    filters: [{ name: 'ESP32_PRESSURE' }],
-                    optionalServices: [serviceUUID]
-                });
-                status.textContent = 'Connecting to GATT server...';
-                const server = await device.gatt.connect();
-                status.textContent = 'Discovering service...';
-                const service = await server.getPrimaryService(serviceUUID);
-                status.textContent = 'Discovering characteristic...';
-                characteristic = await service.getCharacteristic(charUUID);
-                status.textContent = 'Subscribing to notifications...';
-                await characteristic.startNotifications();
-                characteristic.addEventListener('characteristicvaluechanged', (event) => {
-                    const value = new TextDecoder().decode(event.target.value);
-                    receivedValue.textContent = `Received Value: ${value}`;
-                    console.log('Received:', value);
-
-                    if (value === 'WEIGHT_DETECTED') {
-                        status.textContent = 'Weight detected, countdown started...';
-                    } else if (value === 'START_SWING') {
-                        status.textContent = 'Swing started!';
-                    } else if (value === 'TOP_BEEP') {
-                        status.textContent = 'Top of swing reached!';
-                    } else if (value === 'IMPACT_BEEP') {
-                        status.textContent = 'Impact detected!';
-                    } else if (value === 'STEPPED_OFF') {
-                        status.textContent = 'Stepped off early, restarting...';
-                        if (chartInstance) chartInstance.destroy();
-                    } else {
-                        const parsed = parseInput(value);
-                        if (parsed.length === 4) {
-                            const [x1, y1, x2, y2] = parsed;
-                            addSwing(x1, y1, x2, y2);
-                        }
-                    }
-                });
-                status.textContent = 'Connected!';
-                connectBtn.disabled = true;
-                buttons.forEach(btn => btn.disabled = false);
-            } catch (error) {
-                status.textContent = `Error: ${error.message}`;
+                status.textContent = 'Invalid swing data';
+                return false;
             }
-        });
 
-        swingSelect.addEventListener('change', () => {
-            const swingKey = swingSelect.value;
-            if (swingKey && swings[swingKey]) {
-                plotSwing(swingKey);
-                status.textContent = `Plotted ${swingKey}`;
-            } else {
+            function plotSwing(swingKey) {
                 if (chartInstance) chartInstance.destroy();
-                status.textContent = 'No swing selected';
-            }
-        });
+                const data = swings[swingKey];
+                if (!data) return;
 
-        eighteenSix.addEventListener('click', async () => {
-            try {
-                await characteristic.writeValue(new TextEncoder().encode('18/6'));
-                status.textContent = '18/6 Tempo Selected';
-                setSelectedButton(eighteenSix);
-            } catch (error) {
-                status.textContent = `Error: ${error.message}`;
+                const ctx = swingChart.getContext('2d');
+                chartInstance = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        datasets: [
+                            {
+                                label: isPercentage ? 'Lead %' : 'Lead Weight',
+                                data: data.x1.map((x, i) => ({ x: x * 1000, y: isPercentage ? parseFloat(calculatePercentage([data.y1[i]], [data.y2[i]])[0]) : data.y1[i] })),
+                                borderColor: '#9333EA',
+                                backgroundColor: 'rgba(147, 51, 234, 0.2)',
+                                fill: false,
+                                tension: 0.1,
+                                pointRadius: 2
+                            },
+                            {
+                                label: isPercentage ? 'Trail %' : 'Trail Weight',
+                                data: data.x2.map((x, i) => ({ x: x * 1000, y: isPercentage ? parseFloat(calculatePercentage([data.y2[i]], [data.y1[i]])[0]) : data.y2[i] })),
+                                borderColor: '#F59E0B',
+                                backgroundColor: 'rgba(245, 158, 11, 0.2)',
+                                fill: false,
+                                tension: 0.1,
+                                pointRadius: 2
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            title: { display: true, text: swingKey, color: '#111827', font: { size: 16 } },
+                            legend: { labels: { color: '#111827' } },
+                            annotation: {
+                                annotations: {
+                                    startLine: {
+                                        type: 'line',
+                                        xMin: 1000,
+                                        xMax: 1000,
+                                        borderColor: '#1E3A8A',
+                                        borderWidth: 2,
+                                        label: { content: 'Start', enabled: true, position: 'top', color: '#1E3A8A' }
+                                    },
+                                    topLine: {
+                                        type: 'line',
+                                        xMin: 1000 + (currentTempo.backFrames * frameTime * 1000),
+                                        xMax: 1000 + (currentTempo.backFrames * frameTime * 1000),
+                                        borderColor: '#9333EA',
+                                        borderWidth: 2,
+                                        label: { content: 'Top', enabled: true, position: 'top', color: '#9333EA' }
+                                    },
+                                    impactLine: {
+                                        type: 'line',
+                                        xMin: 1000 + (currentTempo.backFrames * frameTime * 1000) + (currentTempo.downFrames * frameTime * 1000),
+                                        xMax: 1000 + (currentTempo.backFrames * frameTime * 1000) + (currentTempo.downFrames * frameTime * 1000),
+                                        borderColor: '#F59E0B',
+                                        borderWidth: 2,
+                                        label: { content: 'Impact', enabled: true, position: 'top', color: '#F59E0B' }
+                                    }
+                                }
+                            },
+                            tooltip: {
+                                enabled: true,
+                                mode: 'nearest',
+                                callbacks: {
+                                    label: function(context) {
+                                        let label = context.dataset.label || '';
+                                        if (label) label += ': ';
+                                        if (context.parsed.y !== null) {
+                                            label += `x: ${context.parsed.x} ms, y: ${context.parsed.y} ${isPercentage ? '%' : 'g'}`;
+                                        }
+                                        return label;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                title: { display: true, text: 'Time (ms)', color: '#111827' },
+                                type: 'linear',
+                                position: 'bottom',
+                                ticks: { stepSize: 250, color: '#111827' }
+                            },
+                            y: {
+                                title: { display: true, text: isPercentage ? 'Weight (%)' : 'Weight (g)', color: '#111827' },
+                                type: 'linear',
+                                position: 'left',
+                                ticks: { stepSize: isPercentage ? 10 : 100, color: '#111827' }
+                            }
+                        }
+                    }
+                });
             }
-        });
 
-        twentyOneSeven.addEventListener('click', async () => {
-            try {
-                await characteristic.writeValue(new TextEncoder().encode('21/7'));
-                status.textContent = '21/7 Tempo Selected';
-                setSelectedButton(twentyOneSeven);
-            } catch (error) {
-                status.textContent = `Error: ${error.message}`;
-            }
-        });
+            connectBtn.addEventListener('click', async () => {
+                try {
+                    if (!navigator.bluetooth) {
+                        throw new Error('Web Bluetooth API not available. Try Chrome or Safari.');
+                    }
+                    status.textContent = 'Requesting Bluetooth device...';
+                    device = await navigator.bluetooth.requestDevice({
+                        filters: [{ name: 'ESP32_PRESSURE' }],
+                        optionalServices: [serviceUUID]
+                    });
+                    status.textContent = 'Connecting to GATT server...';
+                    const server = await device.gatt.connect();
+                    status.textContent = 'Discovering service...';
+                    const service = await server.getPrimaryService(serviceUUID);
+                    status.textContent = 'Discovering characteristic...';
+                    characteristic = await service.getCharacteristic(charUUID);
+                    status.textContent = 'Subscribing to notifications...';
+                    await characteristic.startNotifications();
+                    characteristic.addEventListener('characteristicvaluechanged', (event) => {
+                        const value = new TextDecoder().decode(event.target.value);
+                        receivedValue.textContent = `Received Value: ${value}`;
+                        console.log('Received:', value);
 
-        twentyFourEight.addEventListener('click', async () => {
-            try {
-                await characteristic.writeValue(new TextEncoder().encode('24/8'));
-                status.textContent = '24/8 Tempo Selected';
-                setSelectedButton(twentyFourEight);
-            } catch (error) {
-                status.textContent = `Error: ${error.message}`;
-            }
-        });
-
-        twentySevenNine.addEventListener('click', async () => {
-            try {
-                await characteristic.writeValue(new TextEncoder().encode('27/9'));
-                status.textContent = '27/9 Tempo Selected';
-                setSelectedButton(twentySevenNine);
-            } catch (error) {
-                status.textContent = `Error: ${error.message}`;
-            }
-        });
-
-        thirtyTen.addEventListener('click', async () => {
-            try {
-                await characteristic.writeValue(new TextEncoder().encode('30/10'));
-                status.textContent = '30/10 Tempo Selected';
-                setSelectedButton(thirtyTen);
-            } catch (error) {
-                status.textContent = `Error: ${error.message}`;
-            }
-        });
-
-        togglePercentage.addEventListener('click', () => {
-            isPercentage = !isPercentage;
-            togglePercentage.textContent = `Percentage: ${isPercentage ? 'On' : 'Off'}`;
-            if (chartInstance) {
-                plotSwing(swingSelect.value); // Replot with updated percentage setting
-                status.textContent = `Graph switched to ${isPercentage ? 'percentage' : 'weight'} view`;
-            }
-        });
-
-        device?.addEventListener('gattserverdisconnected', () => {
-            status.textContent = 'Disconnected';
-            connectBtn.disabled = false;
-            buttons.forEach(btn => {
-                btn.disabled = true;
-                btn.classList.remove('selected');
+                        if (value === 'WEIGHT_DETECTED') {
+                            countdownStatus.textContent = 'Weight detected, countdown started...';
+                            startCountdown();
+                        } else if (value === 'START_SWING') {
+                            countdownStatus.textContent = '';
+                            status.textContent = 'Swing started!';
+                            stopCountdown();
+                        } else if (value === 'TOP_BEEP') {
+                            status.textContent = 'Top of swing reached!';
+                        } else if (value === 'IMPACT_BEEP') {
+                            status.textContent = 'Impact detected!';
+                        } else if (value === 'STEPPED_OFF') {
+                            countdownStatus.textContent = '';
+                            status.textContent = 'Stepped off early, restarting...';
+                            stopCountdown();
+                            if (chartInstance) chartInstance.destroy();
+                        } else {
+                            const parsed = parseInput(value);
+                            if (parsed.length === 4) {
+                                const [x1, y1, x2, y2] = parsed;
+                                addSwing(x1, y1, x2, y2);
+                            }
+                        }
+                    });
+                    status.textContent = 'Connected!';
+                    connectBtn.disabled = true;
+                    buttons.forEach(btn => btn.disabled = false);
+                } catch (error) {
+                    status.textContent = `Error: ${error.message}`;
+                }
             });
-            swingSelect.innerHTML = '<option value="">Select a swing to plot</option>';
-            if (chartInstance) chartInstance.destroy();
-            selectedButton = null;
-            device = null;
-            characteristic = null;
+
+            swingSelect.addEventListener('change', () => {
+                const swingKey = swingSelect.value;
+                if (swingKey && swings[swingKey]) {
+                    plotSwing(swingKey);
+                    status.textContent = `Plotted ${swingKey}`;
+                } else {
+                    if (chartInstance) chartInstance.destroy();
+                    status.textContent = 'No swing selected';
+                }
+            });
+
+            eighteenSix.addEventListener('click', async () => {
+                try {
+                    await characteristic.writeValue(new TextEncoder().encode('18/6'));
+                    status.textContent = '18/6 Tempo Selected';
+                    setSelectedButton(eighteenSix);
+                } catch (error) {
+                    status.textContent = `Error: ${error.message}`;
+                }
+            });
+
+            twentyOneSeven.addEventListener('click', async () => {
+                try {
+                    await characteristic.writeValue(new TextEncoder().encode('21/7'));
+                    status.textContent = '21/7 Tempo Selected';
+                    setSelectedButton(twentyOneSeven);
+                } catch (error) {
+                    status.textContent = `Error: ${error.message}`;
+                }
+            });
+
+            twentyFourEight.addEventListener('click', async () => {
+                try {
+                    await characteristic.writeValue(new TextEncoder().encode('24/8'));
+                    status.textContent = '24/8 Tempo Selected';
+                    setSelectedButton(twentyFourEight);
+                } catch (error) {
+                    status.textContent = `Error: ${error.message}`;
+                }
+            });
+
+            twentySevenNine.addEventListener('click', async () => {
+                try {
+                    await characteristic.writeValue(new TextEncoder().encode('27/9'));
+                    status.textContent = '27/9 Tempo Selected';
+                    setSelectedButton(twentySevenNine);
+                } catch (error) {
+                    status.textContent = `Error: ${error.message}`;
+                }
+            });
+
+            thirtyTen.addEventListener('click', async () => {
+                try {
+                    await characteristic.writeValue(new TextEncoder().encode('30/10'));
+                    status.textContent = '30/10 Tempo Selected';
+                    setSelectedButton(thirtyTen);
+                } catch (error) {
+                    status.textContent = `Error: ${error.message}`;
+                }
+            });
+
+            togglePercentage.addEventListener('click', () => {
+                isPercentage = !isPercentage;
+                togglePercentage.textContent = `Percentage: ${isPercentage ? 'On' : 'Off'}`;
+                if (chartInstance) {
+                    plotSwing(swingSelect.value);
+                    status.textContent = `Graph switched to ${isPercentage ? 'percentage' : 'weight'} view`;
+                }
+            });
+
+            fullscreenBtn.addEventListener('click', () => {
+                if (!document.fullscreenElement) {
+                    swingChart.requestFullscreen().catch(err => {
+                        status.textContent = `Error entering full screen: ${err.message}`;
+                    });
+                } else {
+                    document.exitFullscreen();
+                }
+            });
+
+            function startCountdown() {
+                console.log('Starting countdown');
+                countdownTime = 5;
+                countdown.style.display = 'block';
+                updateCountdown();
+                countdownInterval = setInterval(updateCountdown, 1000);
+            }
+
+            function updateCountdown() {
+                countdown.textContent = countdownTime;
+                if (countdownTime <= 0) {
+                    stopCountdown();
+                } else {
+                    countdownTime--;
+                }
+            }
+
+            function stopCountdown() {
+                console.log('Stopping countdown');
+                if (countdownInterval) clearInterval(countdownInterval);
+                countdown.style.display = 'none';
+                countdown.textContent = '5';
+                countdownTime = 5;
+            }
+
+            device?.addEventListener('gattserverdisconnected', () => {
+                status.textContent = 'Disconnected';
+                connectBtn.disabled = false;
+                buttons.forEach(btn => {
+                    btn.disabled = true;
+                    btn.classList.remove('selected');
+                });
+                swingSelect.innerHTML = '<option value="">Select a swing to plot</option>';
+                if (chartInstance) chartInstance.destroy();
+                stopCountdown();
+                countdownStatus.textContent = '';
+                receivedValue.textContent = 'Received Value: None';
+                selectedButton = null;
+                device = null;
+                characteristic = null;
+            });
         });
     </script>
 </body>
