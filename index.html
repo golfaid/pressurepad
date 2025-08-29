@@ -502,22 +502,14 @@
             });
 
             fullscreenBtn.addEventListener('click', () => {
-                if (document.fullscreenEnabled) {
-                    if (!document.fullscreenElement) {
-                        swingChart.requestFullscreen({ navigationUI: 'auto' }).catch(err => {
-                            status.textContent = `Error entering full screen: ${err.message}`;
-                            if (err.name === 'NotAllowedError' || err.name === 'TypeError') {
-                                alert('Full screen may not be supported on this device/browser. Try rotating or using Chrome/Edge.');
-                            }
-                        });
-                    } else {
-                        document.exitFullscreen().catch(err => {
-                            status.textContent = `Error exiting full screen: ${err.message}`;
-                        });
-                    }
+                if (!document.fullscreenEnabled) {
+                    status.textContent = 'Fullscreen is not supported on this device or browser.';
+                } else if (!document.fullscreenElement) {
+                    swingChart.requestFullscreen().catch(err => {
+                        status.textContent = `Error entering full screen: ${err.message}`;
+                    });
                 } else {
-                    status.textContent = 'Full screen is not supported on this device/browser.';
-                    alert('Full screen is not supported. Try using Chrome or Edge on a mobile device.');
+                    document.exitFullscreen();
                 }
             });
 
